@@ -21,8 +21,18 @@
   <div class="box titlebox">
     <h1>삼국지 영걸전</h1>
     <p>유비전 · 서장~1장 2막</p>
-    <button class="btn gold" data-act="new">새 게임</button>
-    <button class="btn" id="btnContinue" data-act="continue">이어하기</button>
+    <div id="loginBox">
+      <input id="loginId" class="inp" maxlength="16" placeholder="아이디" autocomplete="username">
+      <input id="loginPw" class="inp" type="password" maxlength="32" placeholder="비밀번호" autocomplete="current-password">
+      <div class="btns"><button class="btn gold" data-act="login">로그인</button><button class="btn" data-act="register">회원가입</button></div>
+      <div id="loginMsg" class="msg"></div>
+      <button class="btn gray" data-act="guest">로그인 없이 이 기기에서만 하기</button>
+    </div>
+    <div id="slotBox" class="hidden">
+      <div id="slotUser" class="who"></div>
+      <div id="slotList" class="slots"></div>
+      <button class="btn gray" data-act="logout">다른 계정으로</button>
+    </div>
     <button class="btn gray" data-act="help">도움말</button>
   </div>
 </div>

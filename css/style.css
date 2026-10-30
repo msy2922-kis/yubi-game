@@ -48,6 +48,14 @@ html, body {
 .item.off { opacity: .45; } .item .nm { font-weight: 700; color: #ffe6a0; } .item .ds { color: #cfc8b0; font-size: 12px; flex: 1; } .item .pr { color: #ffd54f; font-size: 13px; white-space: nowrap; }
 .item.sel { border-color: var(--gold); background: #2a2a10; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 180px; background: var(--navy); border: 1px solid var(--gold); color: #ffe6a0; padding: 6px 14px; font-size: 13px; pointer-events: none; z-index: 30; }
+.inp { display: block; width: 100%; min-height: 42px; margin-top: 8px; border: 2px solid var(--gold2); background: #0a0d28; color: var(--txt); font-family: inherit; font-size: 16px; padding: 4px 10px; }
+.inp:focus { outline: none; border-color: var(--gold); }
+.msg { min-height: 18px; font-size: 13px; color: #ff8a80; margin-top: 6px; } .msg.ok { color: #9ee0a8; }
+.who { color: #ffe6a0; font-size: 15px; margin-bottom: 6px; }
+.slots { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.slot { border: 1px solid var(--gold2); background: var(--navy2); padding: 8px 10px; }
+.slot .t { color: #ffe6a0; font-size: 14px; } .slot .d { color: #cfc8b0; font-size: 12px; margin-top: 2px; line-height: 1.4; }
+.slot .btns { margin-top: 6px; } .slot .btn { min-height: 36px; font-size: 14px; margin-top: 0; width: auto; display: inline-block; }
 #title { background: #05060f url(../img/title.jpg) center top / cover no-repeat; align-items: flex-end; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
 .titlebox { background: rgba(12,16,48,.9); }
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 10; padding: 16px; }

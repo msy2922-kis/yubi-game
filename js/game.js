@@ -5,7 +5,11 @@
   const ctx = canvas.getContext('2d');
   const wrap = $('#mapwrap');
   const L = Logic;
-  const SAVE_KEY = 'yubi-save-v2';
+  const SAVE_KEY = 'yubi-save-v2';          // 구버전 단일 세이브 (슬롯 0으로 승계)
+  const ACC_KEY = 'yubi-account-v1';       // {id, token} 로그인 세션
+  const API_URL = 'https://yubi-game-api-msy2922.vercel.app';
+  const SLOTS = 3;
+  const ACC = { id: null, token: null, slot: null, guest: false };
   const SET_KEY = 'yubi-settings-v1';
   const settings = Object.assign({ battleAnim: true, zoom: false }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch (e) { return {}; } })());
   function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch (e) { /* 저장 불가 */ } }
@@ -53,8 +57,30 @@
   }
 
   // ---------- 저장 ----------
-  function saveGame() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(P)); } catch (e) { /* 저장 불가 */ } }
-  function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; } }
+  // 슬롯 저장: 로컬(기기)에는 항상, 로그인 상태면 서버에도 올린다
+  const slotKey = (slot) => `yubi-slot-${ACC.id ? 'u:' + ACC.id.toLowerCase() : 'local'}-${slot}`;
+  function saveMeta() { const st = STAGES[P.stageId] || {}; return { stageId: P.stageId, title: st.title || '', chapter: st.chapter || '', gold: P.gold, heroes: P.order.length, lv: P.roster.liubei ? P.roster.liubei.lv : 1, updated: Date.now() }; }
+  let pushTimer = null;
+  function saveGame() {
+    if (ACC.slot === null) return;
+    const payload = { meta: saveMeta(), data: P };
+    try { localStorage.setItem(slotKey(ACC.slot), JSON.stringify(payload)); } catch (e) { /* 저장 불가 */ }
+    if (ACC.id && ACC.token) { clearTimeout(pushTimer); pushTimer = setTimeout(() => pushSave(payload), 800); }
+  }
+  async function pushSave(payload) {
+    try { const r = await api('saves', { op: 'save', slot: ACC.slot, meta: payload.meta, data: payload.data }); if (r.error) throw new Error(r.error); }
+    catch (e) { toast('서버 저장 실패 — 이 기기에만 저장됨'); }
+  }
+  function localSlot(slot) { try { return JSON.parse(localStorage.getItem(slotKey(slot))); } catch (e) { return null; } }
+  async function api(path, body) {
+    const r = await fetch(`${API_URL}/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ id: ACC.id, token: ACC.token }, body)) });
+    let j; try { j = await r.json(); } catch (e) { j = { error: `서버 응답 오류 (${r.status})` }; }
+    return j;
+  }
+  function saveAccount() { try { if (ACC.id) localStorage.setItem(ACC_KEY, JSON.stringify({ id: ACC.id, token: ACC.token })); else localStorage.removeItem(ACC_KEY); } catch (e) { /* 무시 */ } }
+  function loadAccount() { try { const a = JSON.parse(localStorage.getItem(ACC_KEY)); if (a && a.id && a.token) { ACC.id = a.id; ACC.token = a.token; } } catch (e) { /* 무시 */ } }
+  // 구버전 단일 세이브 → 로컬 슬롯 0
+  (() => { try { const old = localStorage.getItem(SAVE_KEY); if (old && !localStorage.getItem('yubi-slot-local-0')) { const d = JSON.parse(old); localStorage.setItem('yubi-slot-local-0', JSON.stringify({ meta: { stageId: d.stageId, title: (STAGES[d.stageId] || {}).title || '', chapter: (STAGES[d.stageId] || {}).chapter || '', gold: d.gold, heroes: (d.order || []).length, updated: Date.now() }, data: d })); } } catch (e) { /* 무시 */ } })();
   function newGame() {
     Object.assign(P, { roster: {}, gold: 300, stageId: FIRST_STAGE, flags: {}, order: ['liubei', 'guanyu', 'zhangfei'] });
     for (const id of P.order) P.roster[id] = newHeroRecord(id);
@@ -597,8 +623,13 @@
     const a = e.target.closest('[data-act]');
     if (!a) return;
     const act = a.dataset.act;
-    if (act === 'new') newGame();
-    else if (act === 'continue') { const s = loadSave(); if (s) { Object.assign(P, s); gotoStage(P.stageId || FIRST_STAGE); } }
+    if (act === 'login' || act === 'register') doAuth(act);
+    else if (act === 'guest') { ACC.guest = true; ACC.id = ACC.token = null; renderTitle(); }
+    else if (act === 'logout') logout();
+    else if (act === 'slotLoad') slotLoad(+a.dataset.slot);
+    else if (act === 'slotNew') slotNew(+a.dataset.slot, !a.closest('.slot').querySelector('[data-act="slotLoad"]') ? false : true);
+    else if (act === 'slotDel') slotDel(+a.dataset.slot);
+    else if (act === 'continue') { hide('#result'); gotoStage(P.stageId || FIRST_STAGE); }
     else if (act === 'help') show('#help');
     else if (act === 'closeHelp') hide('#help');
     else if (act === 'closePick') hide('#pick');
@@ -729,12 +760,65 @@
     show('#result');
   }
   function showTitle() {
-    const s = loadSave();
-    $('#btnContinue').classList.toggle('hidden', !s);
     $('#stageName').textContent = '삼국지 영걸전'; $('#turnInfo').textContent = '';
     $('#panelBody').innerHTML = ''; $('#panelBtns').innerHTML = '';
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
-    show('#title');
+    show('#title'); renderTitle();
+  }
+  // ---------- 계정 · 슬롯 화면 ----------
+  function loginMsg(t, ok) { const m = $('#loginMsg'); m.textContent = t || ''; m.classList.toggle('ok', !!ok); }
+  async function renderTitle() {
+    const logged = !!(ACC.id && ACC.token) || ACC.guest;
+    $('#loginBox').classList.toggle('hidden', logged); $('#slotBox').classList.toggle('hidden', !logged);
+    if (!logged) return;
+    $('#slotUser').textContent = ACC.guest ? '이 기기 저장 (로그인 안 함)' : `${ACC.id}님의 저장 슬롯`;
+    const list = $('#slotList'); list.innerHTML = '<div class="slot"><div class="d">불러오는 중…</div></div>';
+    let slots = [];
+    if (ACC.guest) slots = Array.from({ length: SLOTS }, (_, i) => { const l = localSlot(i); return l ? { slot: i, meta: l.meta } : null; });
+    else {
+      const r = await api('saves', { op: 'list' });
+      if (r.error) { if (/로그인/.test(r.error)) { ACC.id = ACC.token = null; saveAccount(); renderTitle(); loginMsg(r.error); return; }
+        slots = Array.from({ length: SLOTS }, (_, i) => { const l = localSlot(i); return l ? { slot: i, meta: l.meta, local: true } : null; }); toast('서버 연결 실패 — 이 기기의 사본을 표시'); }
+      else slots = r.slots;
+    }
+    list.innerHTML = slots.map((sl, i) => {
+      if (!sl) return `<div class="slot"><div class="t">슬롯 ${i + 1}</div><div class="d">비어 있음</div><div class="btns"><button class="btn gold" data-act="slotNew" data-slot="${i}">새 게임 시작</button></div></div>`;
+      const m = sl.meta || {}, when = m.updated ? new Date(m.updated).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+      return `<div class="slot"><div class="t">슬롯 ${i + 1} — ${m.title || ''}${sl.local ? ' (기기 사본)' : ''}</div><div class="d">${m.chapter || ''}<br>유비 Lv${m.lv || '?'} · 장수 ${m.heroes || '?'}명 · 금 ${m.gold ?? '?'} · ${when}</div><div class="btns"><button class="btn gold" data-act="slotLoad" data-slot="${i}">이어하기</button><button class="btn" data-act="slotNew" data-slot="${i}">새로 시작</button><button class="btn red" data-act="slotDel" data-slot="${i}">삭제</button></div></div>`;
+    }).join('');
+  }
+  async function doAuth(action) {
+    const id = $('#loginId').value.trim(), pw = $('#loginPw').value;
+    if (!id || !pw) { loginMsg('아이디와 비밀번호를 입력하세요'); return; }
+    loginMsg(action === 'login' ? '로그인 중…' : '만드는 중…', true);
+    try {
+      const r = await api('auth', { action, id, pw });
+      if (r.error) { loginMsg(r.error); return; }
+      ACC.id = r.id; ACC.token = r.token; ACC.guest = false; saveAccount(); $('#loginPw').value = ''; loginMsg('');
+      renderTitle();
+    } catch (e) { loginMsg('서버에 연결할 수 없습니다'); }
+  }
+  async function slotLoad(slot) {
+    let d = null;
+    if (ACC.guest) { const l = localSlot(slot); d = l && l.data; }
+    else { const r = await api('saves', { op: 'load', slot }); if (!r.error) d = r.data; else { const l = localSlot(slot); d = l && l.data; if (d) toast('서버 연결 실패 — 기기 사본으로 진행'); else { toast(r.error); return; } } }
+    if (!d) return;
+    ACC.slot = slot; Object.assign(P, { roster: {}, gold: 0, stageId: null, flags: {}, order: [] }, d);
+    hide('#title'); gotoStage(P.stageId || FIRST_STAGE);
+  }
+  async function slotNew(slot, hasData) {
+    if (hasData && !confirm(`슬롯 ${slot + 1}의 저장을 지우고 새로 시작할까요?`)) return;
+    ACC.slot = slot; hide('#title'); newGame();
+  }
+  async function slotDel(slot) {
+    if (!confirm(`슬롯 ${slot + 1}의 저장을 삭제할까요?`)) return;
+    try { localStorage.removeItem(slotKey(slot)); } catch (e) { /* 무시 */ }
+    if (!ACC.guest) { const r = await api('saves', { op: 'delete', slot }); if (r.error) toast(r.error); }
+    renderTitle();
+  }
+  async function logout() {
+    if (ACC.id && ACC.token) api('auth', { action: 'logout' }).catch(() => {});
+    ACC.id = ACC.token = null; ACC.guest = false; ACC.slot = null; saveAccount(); renderTitle();
   }
 
   // ---------- 렌더링 ----------
@@ -891,7 +975,7 @@
     }
   }
 
-  showTitle(); updateAnimBtn();
+  loadAccount(); showTitle(); updateAnimBtn();
   requestAnimationFrame(draw);
   window.__G = G; window.__P = P; window.__dbg = { loadStage, gotoStage, newGame, endPlayerTurn, select, onTap, finishAction, STAGES };
 })();
