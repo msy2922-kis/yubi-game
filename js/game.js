@@ -309,7 +309,8 @@
     if (stale()) return;
     G.phase = 'enemy'; updateTop(); updatePanel();
     terrainHeal('e'); await sleep(300);
-    for (const e of alive('e')) { if (stale()) return; if (!e.alive) continue; if (await runAi(e)) return; }
+    try { for (const e of alive('e')) { if (stale()) return; if (!e.alive) continue; if (await runAi(e)) return; } }
+    catch (err) { console.error(err); if (stale()) return; toast('적 턴 처리 중 오류 — 아군 턴으로 넘어갑니다'); }
     if (stale()) return;
     G.acting = null;
     startPlayerTurn(false);
@@ -543,9 +544,21 @@
   }
 
   // ---------- 터치 ----------
-  const run = async (fn) => { if (G.busy) return; G.busy = true; try { await fn(); } finally { if (G.phase === 'player' && !G.dialog && G.map) G.busy = false; } };
+  const run = async (fn) => { if (G.busy) return; G.busy = true; try { await fn(); } catch (e) { console.error(e); toast('오류가 나서 행동을 취소했습니다'); } finally { if (G.phase === 'player' && !G.dialog && G.map) G.busy = false; } };
+  // 안전장치: 어떤 이유로든 busy가 오래 풀리지 않으면(대화창·전투 장면·결과창이 없는데 8초 이상) 강제로 푼다
+  let busyAt = 0, realBusy = false;
+  Object.defineProperty(G, 'busy', { get: () => realBusy, set: (v) => { realBusy = !!v; if (v) busyAt = Date.now(); } });
+  function stuckBusy() {
+    if (!G.busy || G.phase !== 'player' || G.dialog || !G.map) return false;
+    if (!$('#battle').classList.contains('hidden') || !$('#result').classList.contains('hidden') || !$('#camp').classList.contains('hidden') || !$('#choice').classList.contains('hidden')) return false;
+    if (Date.now() - busyAt < 8000) return false;
+    G.busy = false; G.acting = null; return true;
+  }
+  let dialogClosedAt = 0;
   canvas.addEventListener('click', (e) => {
+    if (G.busy && stuckBusy()) updatePanel();
     if (G.busy || G.phase !== 'player' || G.dialog || !G.map) return;
+    if (Date.now() - dialogClosedAt < 400) return;   // 대화창을 닫은 터치가 지도까지 전달되는 것 방지
     const r = canvas.getBoundingClientRect();
     const x = Math.floor((e.clientX - r.left) / TS), y = Math.floor((e.clientY - r.top) / TS);
     if (!L.tileAt(G.map, x, y)) return;
@@ -618,7 +631,11 @@
   }
   function openTactics() { G.preState = G.state; G.state = 'tactic'; G.inspect = null; hideCmdMenu(); updatePanel(); }
   function openItems() { G.preState = G.state; G.state = 'item'; G.inspect = null; hideCmdMenu(); updatePanel(); }
-  function openAttack() { G.preState = G.state; G.state = 'atkTarget'; G.inspect = null; hideCmdMenu(); updatePanel(); }
+  function openAttack() {
+    const n = G.state === 'moved' ? G.moveTargets.length : (G.atkOpts ? G.atkOpts.size : 0);
+    if (!n) { toast('공격할 수 있는 적이 없습니다'); return; }
+    G.preState = G.state; G.state = 'atkTarget'; G.inspect = null; hideCmdMenu(); updatePanel();
+  }
   function chooseTactic(name, item) {
     const s = G.sel;
     if (item && ITEMS[item].bomb) {
@@ -655,6 +672,7 @@
     else if (act === 'restart') { hide('#menu'); hide('#result'); if (G.stage) { hide('#dialog'); G.dialog = null; loadStage(G.stage, G.deploy); } else if (P.stageId) gotoStage(P.stageId); }
     else if (act === 'home') { hide('#menu'); hide('#result'); hide('#camp'); hide('#choice'); G.map = null; G.dialog = null; hide('#dialog'); showTitle(); }
     else if (act === 'sortie') { hide('#camp'); loadStage(camp.stage, camp.sel.slice()); }
+    else if (G.busy && stuckBusy()) { toast('멈춘 동작을 풀었습니다'); deselect(); return; }
     else if (G.busy || G.phase !== 'player') return;
     else if (act === 'endturn') endPlayerTurn();
     else if (act === 'wait') finishAction(G.sel);
@@ -762,7 +780,7 @@
     e.preventDefault();
     const d = G.dialog; if (!d) return;
     d.i++;
-    if (d.i >= d.lines.length) { G.dialog = null; hide('#dialog'); d.done && d.done(); } else renderDialog();
+    if (d.i >= d.lines.length) { G.dialog = null; hide('#dialog'); dialogClosedAt = Date.now(); d.done && d.done(); } else renderDialog();
   });
   function showResult(win, why) {
     G.busy = true;

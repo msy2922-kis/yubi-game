@@ -249,7 +249,11 @@ const BattleScene = (() => {
 
     return new Promise((resolve) => {
       let last = performance.now(), t = 0;
+      const finish = () => { wrap.classList.add('hidden'); wrap.removeEventListener('pointerdown', fast); parts = []; resolve(); };
       const frame = (now) => {
+        try { frameBody(now); } catch (e) { console.error('battle scene error', e); finish(); }
+      };
+      const frameBody = (now) => {
         const dt = Math.min(100, (now - last) * speed); t += dt; last = now;
         const shake = { x: 0, y: 0 };
         const pos = { [left.id]: { dx: 0, flash: 0, tilt: 0, red: 0, march: 0 }, [right.id]: { dx: 0, flash: 0, tilt: 0, red: 0, march: 0 } };
@@ -346,7 +350,7 @@ const BattleScene = (() => {
         if (t > total - 250) { ctx.fillStyle = `rgba(0,0,0,${(t - (total - 250)) / 250})`; ctx.fillRect(0, 0, W, H); }
         ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = '11px "Galmuri11", sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('터치: 빨리 감기', W - 8, H - 6);
         if (t < total) requestAnimationFrame(frame);
-        else { wrap.classList.add('hidden'); wrap.removeEventListener('pointerdown', fast); parts = []; resolve(); }
+        else finish();
       };
       requestAnimationFrame(frame);
     });
