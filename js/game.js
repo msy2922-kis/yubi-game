@@ -75,6 +75,7 @@
   async function api(path, body) {
     const r = await fetch(`${API_URL}/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ id: ACC.id, token: ACC.token }, body)) });
     let j; try { j = await r.json(); } catch (e) { j = { error: `서버 응답 오류 (${r.status})` }; }
+    if (j && j.error && typeof j.error !== 'string') j.error = j.error.message || `서버 오류 (${r.status})`;
     return j;
   }
   function saveAccount() { try { if (ACC.id) localStorage.setItem(ACC_KEY, JSON.stringify({ id: ACC.id, token: ACC.token })); else localStorage.removeItem(ACC_KEY); } catch (e) { /* 무시 */ } }
