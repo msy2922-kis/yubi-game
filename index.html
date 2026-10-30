@@ -83,6 +83,18 @@
 <div id="pick" class="overlay hidden"><div class="box"><h2 id="pickTitle"></h2><div id="pickList"></div><button class="btn gray" data-act="closePick">취소</button></div></div>
 
 <div id="battle" class="hidden"><canvas id="battleCanvas"></canvas></div>
+<div id="story" class="hidden">
+  <video id="storyVideo" class="hidden" muted playsinline preload="auto"></video>
+  <button class="tb skipbtn" id="storyVideoSkip">건너뛰기</button>
+  <div id="storyStage">
+    <div id="storyImg"></div>
+    <div id="storyShade"></div>
+    <div id="storyTitle"></div>
+    <div id="storyText"></div>
+    <div id="storyHint"></div>
+    <button class="tb skipbtn" id="storySkip">건너뛰기</button>
+  </div>
+</div>
 
 <div id="dialog" class="hidden">
   <div id="dlgBox" class="kw"><img id="dlgFace" class="hidden" alt=""><div id="dlgBody"><div id="dlgName"></div><div id="dlgText"></div><div id="dlgMore">▼ 터치해서 계속</div></div></div>
@@ -92,6 +104,7 @@
 <script src="js/stages.js"></script>
 <script src="js/logic.js"></script>
 <script src="js/battle.js"></script>
+<script src="js/story.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

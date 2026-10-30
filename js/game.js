@@ -85,7 +85,8 @@
   function newGame() {
     Object.assign(P, { roster: {}, gold: 300, stageId: FIRST_STAGE, flags: {}, order: ['liubei', 'guanyu', 'zhangfei'] });
     for (const id of P.order) P.roster[id] = newHeroRecord(id);
-    saveGame(); gotoStage(FIRST_STAGE);
+    saveGame();
+    Story.play(OPENING).then(() => gotoStage(FIRST_STAGE));
   }
   function addHero(id) {
     if (P.roster[id]) return;
@@ -93,11 +94,17 @@
   }
 
   // ---------- 스테이지 진행 ----------
+  const artShown = new Set();   // 이번 세션에서 이미 보여 준 장 삽화
   function gotoStage(id) {
     const s = STAGES[id];
     P.stageId = id; saveGame();
     hide('#title'); hide('#result'); hide('#menu'); hide('#camp');
     if (!s) { showTitle(); return; }
+    if (s.art && !artShown.has(id)) {
+      artShown.add(id);
+      Story.play({ scenes: [{ img: `img/story/${s.art}.jpg`, audio: `img/story/${s.art}.mp3`, title: `${s.chapter ? s.chapter + ' — ' : ''}${s.title}`, text: STAGE_ART_TEXT[s.art] || '' }] }).then(() => gotoStage(id));
+      return;
+    }
     if (s.event) {
       G.map = null; $('#stageName').textContent = s.title; $('#turnInfo').textContent = '';
       showDialog(s.intro, () => {

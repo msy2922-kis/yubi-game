@@ -5,7 +5,7 @@ const E = (name, cls, lv, x, y, o = {}) => Object.assign({ name, cls, lv, x, y }
 const STAGES = {
   // ---------------- 서장: 동탁 타도군 일어나다 ----------------
   sishui: {
-    id: 'sishui', title: '사수관 전투', chapter: '서장 · 동탁 타도군 일어나다', turns: 30, gold: 100,
+    id: 'sishui', art: 'st_sishui', title: '사수관 전투', chapter: '서장 · 동탁 타도군 일어나다', turns: 30, gold: 100,
     deploy: { max: 3, fixed: ['liubei', 'guanyu', 'zhangfei'] },
     map: [
       'MMMXXXXXXXXXXMMM',
@@ -57,7 +57,7 @@ const STAGES = {
     next: 'hulao',
   },
   hulao: {
-    id: 'hulao', title: '호로관 전투', chapter: '서장 · 동탁 타도군 일어나다', turns: 30, gold: 100,
+    id: 'hulao', art: 'st_hulao', title: '호로관 전투', chapter: '서장 · 동탁 타도군 일어나다', turns: 30, gold: 100,
     deploy: { max: 3, fixed: ['liubei', 'guanyu', 'zhangfei'] },
     map: [
       'XXXXXXXXXXXMMMMM',
@@ -429,7 +429,7 @@ const STAGES = {
     next: 'xuzhou1',
   },
   xuzhou1: {
-    id: 'xuzhou1', title: '서주 전투', chapter: '1장 2막 · 북해·서주 원군', turns: 30, gold: 600,
+    id: 'xuzhou1', art: 'st_xuzhou', title: '서주 전투', chapter: '1장 2막 · 북해·서주 원군', turns: 30, gold: 600,
     deploy: { max: 7, fixed: ['liubei', 'zhaoyun'] },
     map: [
       'MMPPPPPPXXXXXXXX',
@@ -498,7 +498,7 @@ const STAGES = {
     next: 'end1',
   },
   xiaopei: {
-    id: 'xiaopei', title: '소패 전투', chapter: '1장 2막 · 북해·서주 원군', turns: 9, gold: 500, timeoutWin: true,
+    id: 'xiaopei', art: 'st_xiaopei', title: '소패 전투', chapter: '1장 2막 · 북해·서주 원군', turns: 9, gold: 500, timeoutWin: true,
     deploy: { max: 7, fixed: ['liubei', 'zhaoyun'] },
     map: [
       'MMPPPPPPPPPPPPMM',
@@ -551,7 +551,7 @@ const STAGES = {
     next: 'end1',
   },
   end1: {
-    id: 'end1', title: '1장 2막 끝', chapter: '', event: true,
+    id: 'end1', art: 'end_depart', title: '1장 2막 끝', chapter: '', event: true,
     intro: [
       { who: '안내', text: '여기까지가 서장과 1장 1~2막입니다. 다음 막(태산·하구·팽성 산적 토벌, 회남, 하비의 여포 토벌)은 다음 업데이트에서 이어집니다.' },
       { who: '유비', text: '함께 싸워 줘서 고맙소. 이어하기를 누르면 지금까지 키운 장수들로 다시 서장부터 도전할 수 있소.' },
@@ -560,3 +560,20 @@ const STAGES = {
   },
 };
 const FIRST_STAGE = 'sishui';
+// 오프닝 (새 게임 시작 시). video가 있으면 먼저 재생
+const OPENING = {
+  video: 'img/story/opening.mp4', scenesAreFallback: true,   // 동영상을 못 트는 기기에서는 아래 삽화 장면으로 대신
+  scenes: [
+    { img: 'img/story/op1_peach.jpg', audio: 'img/story/op1_peach.mp3', title: '도원결의', text: '후한 말, 어지러운 세상. 탁군의 유비는 관우·장비와 복숭아밭에서 의형제의 맹세를 맺는다. "한날한시에 태어나지는 못했으나, 한날한시에 죽기를 원하노라."' },
+    { img: 'img/story/op2_turmoil.jpg', audio: 'img/story/op2_turmoil.mp3', title: '황건적의 난', text: '"창천은 이미 죽었고 황천이 서리라." 황건적의 난이 천하를 휩쓸고, 세 형제는 의병을 일으켜 백성을 지키며 이름을 떨친다.' },
+    { img: 'img/story/op3_dongzhuo.jpg', audio: 'img/story/op3_dongzhuo.mp3', title: '동탁의 폭정', text: '난이 끝나자 동탁이 낙양에 들어와 어린 황제를 쥐고 폭정을 일삼는다. 그 곁에는 천하무쌍의 맹장 여포가 서 있었다.' },
+    { img: 'img/story/op4_coalition.jpg', audio: 'img/story/op4_coalition.mp3', title: '반동탁 연합군', text: '원소를 맹주로 제후들이 동탁 토벌군을 일으킨다. 유비 삼형제도 공손찬의 군에 합류해 사수관으로 향한다. 영걸들의 이야기가 시작된다.' },
+  ],
+};
+const STAGE_ART_TEXT = {
+  st_sishui: '사수관. 동탁의 선봉 화웅이 연합군 장수들을 잇달아 베자, 관우가 따뜻한 술이 식기 전에 돌아오겠다며 나선다.',
+  st_hulao: '호로관. 여포가 적토마를 타고 방천화극을 휘두르며 연합군을 짓밟는다. 유비·관우·장비 세 형제가 함께 여포를 막아선다.',
+  st_xuzhou: '서주. 조조의 대군에 포위된 도겸이 유비에게 구원을 청한다. 도겸은 서주를 유비에게 맡기려 한다.',
+  st_xiaopei: '소패. 유비가 거두어 준 여포가 은혜를 저버리고 서주를 빼앗는다. 유비는 소패에서 여포와 조조 사이에 서게 된다.',
+  end_depart: '세 형제의 여정은 계속된다. 다음 막에서 다시 만나자.',
+};
