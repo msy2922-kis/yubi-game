@@ -1,5 +1,5 @@
 // 공용: Vercel Blob 저장소 래퍼 + 인증 유틸
-// 경로 규칙 (공개 스토어라 경로를 비밀키 HMAC으로 숨김, 쓰기마다 새 파일을 만들어 CDN 캐시를 피함)
+// 경로 규칙 (비공개 스토어. 경로는 비밀키 HMAC으로 가리고, 쓰기마다 새 파일을 만들어 캐시를 피함)
 //   u/<h(id)>/<ts>.json         사용자 레코드 {id, salt, hash, tokens:[{h,exp}]}
 //   s/<h(id)>/<slot>/<ts>.json  세이브 {meta, data}
 const crypto = require('crypto');
@@ -15,16 +15,16 @@ async function latest(prefix) {
   const { blobs } = await blob.list({ prefix, limit: 1000 });
   if (!blobs.length) return null;
   blobs.sort((a, b) => (a.pathname < b.pathname ? 1 : -1));
-  const r = await fetch(blobs[0].url, { cache: 'no-store' });
-  if (!r.ok) return null;
-  const data = await r.json();
+  const r = await blob.get(blobs[0].url, { access: 'private' });
+  if (!r || r.statusCode !== 200) return null;
+  const data = await new Response(r.stream).json();
   // 오래된 버전 정리 (최신 1개만 유지)
   if (blobs.length > 1) blob.del(blobs.slice(1).map((b) => b.url)).catch(() => {});
   return data;
 }
 async function write(prefix, obj) {
   const path = `${prefix}${Date.now().toString(36)}.json`;
-  await blob.put(path, JSON.stringify(obj), { access: 'public', addRandomSuffix: false, contentType: 'application/json', cacheControlMaxAge: 60 });
+  await blob.put(path, JSON.stringify(obj), { access: 'private', addRandomSuffix: false, contentType: 'application/json' });
 }
 async function remove(prefix) {
   const { blobs } = await blob.list({ prefix, limit: 1000 });
