@@ -781,6 +781,8 @@
       if (r.error) { if (/로그인/.test(r.error)) { ACC.id = ACC.token = null; saveAccount(); renderTitle(); loginMsg(r.error); return; }
         slots = Array.from({ length: SLOTS }, (_, i) => { const l = localSlot(i); return l ? { slot: i, meta: l.meta, local: true } : null; }); toast('서버 연결 실패 — 이 기기의 사본을 표시'); }
       else slots = r.slots;
+      // 서버 반영이 1~2초 늦을 수 있으니 이 기기의 사본이 더 새것이면 그걸 보여 준다
+      for (let i = 0; i < SLOTS; i++) { const l = localSlot(i); if (l && l.meta && (!slots[i] || (l.meta.updated || 0) > (slots[i].meta.updated || 0))) slots[i] = { slot: i, meta: l.meta }; }
     }
     list.innerHTML = slots.map((sl, i) => {
       if (!sl) return `<div class="slot"><div class="t">슬롯 ${i + 1}</div><div class="d">비어 있음</div><div class="btns"><button class="btn gold" data-act="slotNew" data-slot="${i}">새 게임 시작</button></div></div>`;
@@ -802,7 +804,11 @@
   async function slotLoad(slot) {
     let d = null;
     if (ACC.guest) { const l = localSlot(slot); d = l && l.data; }
-    else { const r = await api('saves', { op: 'load', slot }); if (!r.error) d = r.data; else { const l = localSlot(slot); d = l && l.data; if (d) toast('서버 연결 실패 — 기기 사본으로 진행'); else { toast(r.error); return; } } }
+    else {
+      const r = await api('saves', { op: 'load', slot }), l = localSlot(slot);
+      if (!r.error) d = (l && l.meta && r.meta && (l.meta.updated || 0) > (r.meta.updated || 0)) ? l.data : r.data;   // 더 새것 우선
+      else { d = l && l.data; if (d) toast('서버 연결 실패 — 기기 사본으로 진행'); else { toast(r.error); return; } }
+    }
     if (!d) return;
     ACC.slot = slot; Object.assign(P, { roster: {}, gold: 0, stageId: null, flags: {}, order: [] }, d);
     hide('#title'); gotoStage(P.stageId || FIRST_STAGE);
