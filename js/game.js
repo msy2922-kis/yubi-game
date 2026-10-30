@@ -343,14 +343,28 @@
   function showCmdMenu() {
     const u = G.sel, m = $('#cmdMenu'); if (!u) return;
     const canAtk = G.state === 'moved' ? G.moveTargets.length > 0 : G.atkOpts.size > 0;
-    m.innerHTML = `<button data-act="attackMode" ${canAtk ? '' : 'disabled'}>공격</button><button data-act="tactics">책략</button><button data-act="items">도구</button><button data-act="wait">대기</button><button data-act="cancel">${G.state === 'moved' ? '취소' : '해제'}</button>`;
+    m.innerHTML = `${G.state === 'selected' ? '<button data-act="moveMode">이동</button>' : ''}<button data-act="attackMode" ${canAtk ? '' : 'disabled'}>공격</button><button data-act="tactics">책략</button><button data-act="items">도구</button><button data-act="wait">대기</button><button data-act="cancel">${G.state === 'moved' ? '취소' : '해제'}</button>`;
     m.classList.remove('hidden');
-    const mw = m.offsetWidth || 100, mh = m.offsetHeight || 190;
-    let px = canvas.offsetLeft + (u.x + 1) * TS + 4, py = canvas.offsetTop + u.y * TS - 10;
-    if (px + mw > canvas.offsetLeft + canvas.clientWidth) px = canvas.offsetLeft + u.x * TS - mw - 4;
-    if (px < 0) px = 0;
-    py = Math.max(canvas.offsetTop, Math.min(py, canvas.offsetTop + canvas.clientHeight - mh));
-    m.style.left = px + 'px'; m.style.top = py + 'px';
+    const mw = m.offsetWidth || 100, mh = m.offsetHeight || 220;
+    // 가리면 안 되는 칸: 이동 가능 칸 · 공격 대상 · 자기 자신
+    const avoid = [{ x: u.x, y: u.y }];
+    if (G.state === 'selected' && G.reach) { for (const v of G.reach.values()) if (!v.blocked) avoid.push(v); for (const id of G.atkOpts.keys()) { const t = G.units.find((z) => z.id === id); if (t) avoid.push(t); } }
+    else if (G.state === 'moved') for (const t of G.moveTargets) avoid.push(t);
+    const ox = canvas.offsetLeft, oy = canvas.offsetTop, maxX = Math.max(0, wrap.scrollWidth - mw), maxY = Math.max(0, wrap.scrollHeight - mh);
+    const cands = [
+      [ox + (u.x + 1) * TS + 4, oy + u.y * TS - 10],            // 오른쪽
+      [ox + u.x * TS - mw - 4, oy + u.y * TS - 10],             // 왼쪽
+      [ox + u.x * TS - mw / 2 + TS / 2, oy + (u.y + 1) * TS + 4], // 아래
+      [ox + u.x * TS - mw / 2 + TS / 2, oy + u.y * TS - mh - 4], // 위
+    ];
+    let best = null, bestScore = Infinity;
+    for (const [cx, cy] of cands) {
+      const px = Math.max(0, Math.min(cx, maxX)), py = Math.max(0, Math.min(cy, maxY));
+      let score = (Math.abs(px - cx) + Math.abs(py - cy)) * 0.01;   // 밀려난 만큼 약한 감점
+      for (const c of avoid) { const ax = ox + c.x * TS, ay = oy + c.y * TS; if (ax < px + mw && ax + TS > px && ay < py + mh && ay + TS > py) score += c === avoid[0] ? 50 : 1; }
+      if (score < bestScore) { bestScore = score; best = [px, py]; }
+    }
+    m.style.left = best[0] + 'px'; m.style.top = best[1] + 'px';
   }
   function hideCmdMenu() { $('#cmdMenu').classList.add('hidden'); }
   async function moveUnit(u, x, y, reach) {
@@ -565,7 +579,7 @@
       return;
     }
     if (G.state === 'selected') {
-      if (u === s) { G.inspect = null; updatePanel(); return; }
+      if (u === s) { G.inspect = null; updatePanel(); showCmdMenu(); return; }
       if (u && u.side === 'e' && G.atkOpts.has(u.id)) {
         const spot = L.bestSpot(G.atkOpts.get(u.id), s);
         run(async () => {
@@ -647,6 +661,7 @@
     else if (act === 'cancel') cancelMove();
     else if (act === 'tactics') openTactics();
     else if (act === 'attackMode') openAttack();
+    else if (act === 'moveMode') { hideCmdMenu(); G.inspect = null; updatePanel(); toast('파란 칸을 터치하면 이동합니다'); }
     else if (act === 'items') openItems();
     else if (act === 'tac') chooseTactic(a.dataset.name, null);
     else if (act === 'useitem') { const it = a.dataset.name; chooseTactic(ITEMS[it].tac, it); }
