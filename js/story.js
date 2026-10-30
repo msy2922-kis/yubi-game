@@ -51,8 +51,8 @@ const Story = (() => {
     return new Promise((res) => {
       const v = $('#storyVideo');
       let done = false, played = false;
-      const end = () => { if (!done) { done = true; v.classList.add('hidden'); v.pause(); res(played); } };
-      v.muted = false; v.playsInline = true; v.src = src; v.classList.remove('hidden');
+      const end = () => { if (!done) { done = true; v.classList.add('hidden'); $('#storyVideoSkip').classList.add('hidden'); v.pause(); res(played); } };
+      v.muted = false; v.playsInline = true; v.src = src; v.classList.remove('hidden'); $('#storyVideoSkip').classList.remove('hidden');
       v.onended = end; v.onerror = end; v.onplaying = () => { played = true; };
       const tryPlay = () => { const p = v.play(); if (p && p.catch) p.catch(() => { if (!v.muted) { v.muted = true; tryPlay(); } else end(); }); };
       tryPlay();
