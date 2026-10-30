@@ -15,8 +15,7 @@ module.exports = async (req, res) => {
     if (!u) return res.status(401).json({ error: '로그인이 필요합니다' });
     const slot = Number(b.slot);
     if (b.op === 'list') {
-      const slots = [];
-      for (let i = 0; i < SLOTS; i++) { const r = await S.latest(S.slotPrefix(id, i)); slots.push(r ? { slot: i, meta: r.meta } : null); }
+      const slots = await Promise.all(Array.from({ length: SLOTS }, (_, i) => S.latest(S.slotPrefix(id, i)).then((r) => (r ? { slot: i, meta: r.meta } : null))));
       return res.json({ slots });
     }
     if (!(slot >= 0 && slot < SLOTS)) return res.status(400).json({ error: '슬롯 번호 오류' });
