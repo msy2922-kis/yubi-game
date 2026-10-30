@@ -1,53 +1,47 @@
 // 공용: Vercel Blob 저장소 래퍼 + 인증 유틸
-// 경로 규칙 (비공개 스토어. 경로는 비밀키 HMAC으로 가리고, 쓰기마다 새 파일을 만들어 캐시를 피함)
-//   u/<h(id)>/<ts>.json         사용자 레코드 {id, salt, hash, tokens:[{h,exp}]}
-//   s/<h(id)>/<slot>/<ts>.json  세이브 {meta, data}
+// 경로 규칙 (비공개 스토어, 경로는 비밀키 HMAC으로 가림, 같은 경로에 덮어쓰기)
+//   u/<h(id)>.json         사용자 레코드 {id, salt, hash, created}
+//   s/<h(id)>/<slot>.json  세이브 {meta, data}
+// 세션 토큰은 서명 방식(id|만료|HMAC)이라 검증에 저장소 조회가 필요 없다
 const crypto = require('crypto');
 const blob = require('@vercel/blob');
 
 const SECRET = process.env.SESSION_SECRET || 'dev-secret';
-const hid = (id) => crypto.createHmac('sha256', SECRET).update('id:' + id.toLowerCase()).digest('hex').slice(0, 32);
-const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+const hmac = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('hex');
+const hid = (id) => hmac('id:' + id.toLowerCase()).slice(0, 32);
 const normId = (id) => String(id || '').trim();
 const validId = (id) => /^[0-9A-Za-z가-힣_]{2,16}$/.test(id);
 
-async function latest(prefix) {
-  const { blobs } = await blob.list({ prefix, limit: 1000 });
-  if (!blobs.length) return null;
-  blobs.sort((a, b) => (a.pathname < b.pathname ? 1 : -1));
-  const r = await blob.get(blobs[0].url, { access: 'private' });
+async function readJson(path) {
+  const r = await blob.get(path, { access: 'private' });
   if (!r || r.statusCode !== 200) return null;
-  const data = await new Response(r.stream).json();
-  // 오래된 버전 정리 (최신 1개만 유지)
-  if (blobs.length > 1) blob.del(blobs.slice(1).map((b) => b.url)).catch(() => {});
-  return data;
+  return new Response(r.stream).json();
 }
-async function write(prefix, obj) {
-  const path = `${prefix}${Date.now().toString(36)}.json`;
-  await blob.put(path, JSON.stringify(obj), { access: 'private', addRandomSuffix: false, contentType: 'application/json' });
+async function writeJson(path, obj) {
+  await blob.put(path, JSON.stringify(obj), { access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
 }
-async function remove(prefix) {
-  const { blobs } = await blob.list({ prefix, limit: 1000 });
-  if (blobs.length) await blob.del(blobs.map((b) => b.url));
-}
+async function removePath(path) { await blob.del(path); }
 
-const userPrefix = (id) => `u/${hid(id)}/`;
-const slotPrefix = (id, slot) => `s/${hid(id)}/${slot}/`;
+const userPath = (id) => `u/${hid(id)}.json`;
+const slotPath = (id, slot) => `s/${hid(id)}/${slot}.json`;
 
 function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 32).toString('hex'); }
-function newToken() { return crypto.randomBytes(24).toString('hex'); }
-
-async function getUser(id) { return latest(userPrefix(id)); }
-async function putUser(u) { await write(userPrefix(u.id), u); }
-
-// 토큰 검증 → 사용자 레코드 (없으면 null)
-async function auth(id, token) {
-  id = normId(id); if (!validId(id) || !token) return null;
-  const u = await getUser(id); if (!u) return null;
-  const th = sha(token), now = Date.now();
-  const t = (u.tokens || []).find((x) => x.h === th && x.exp > now);
-  return t ? u : null;
+function signToken(id, days) {
+  const exp = Date.now() + days * 864e5, base = `${Buffer.from(id).toString('base64url')}.${exp.toString(36)}`;
+  return `${base}.${hmac('tok:' + base).slice(0, 40)}`;
 }
+function verifyToken(id, token) {
+  if (!token) return false;
+  const parts = String(token).split('.'); if (parts.length !== 3) return false;
+  const base = `${parts[0]}.${parts[1]}`;
+  if (hmac('tok:' + base).slice(0, 40) !== parts[2]) return false;
+  if (Buffer.from(parts[0], 'base64url').toString() !== id) return false;
+  return parseInt(parts[1], 36) > Date.now();
+}
+
+async function getUser(id) { return readJson(userPath(id)); }
+async function putUser(u) { await writeJson(userPath(u.id), u); }
+function auth(id, token) { id = normId(id); return validId(id) && verifyToken(id, token); }
 
 function cors(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -59,4 +53,4 @@ function cors(req, res) {
 }
 function body(req) { if (!req.body) return {}; if (typeof req.body === 'string') { try { return JSON.parse(req.body); } catch (e) { return {}; } } return req.body; }
 
-module.exports = { normId, validId, hashPw, newToken, sha, getUser, putUser, auth, latest, write, remove, slotPrefix, cors, body };
+module.exports = { normId, validId, hashPw, signToken, getUser, putUser, auth, readJson, writeJson, removePath, slotPath, cors, body };
